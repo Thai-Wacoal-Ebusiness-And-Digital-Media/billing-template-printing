@@ -121,7 +121,7 @@ export default function Home() {
                     <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
                     <td className="px-4 py-3">
                       <input
-                        className="w-full border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-full border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                         placeholder="e.g. CLAUDE.AI"
                         value={r.serviceName}
                         onChange={(e) => update(r.id, { serviceName: e.target.value })}
@@ -129,7 +129,7 @@ export default function Home() {
                     </td>
                     <td className="px-4 py-3">
                       <input
-                        className="w-full border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-full border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                         placeholder="e.g. ค่าบริการ"
                         value={r.serviceType}
                         onChange={(e) => update(r.id, { serviceType: e.target.value })}
@@ -137,7 +137,7 @@ export default function Home() {
                     </td>
                     <td className="px-4 py-3">
                       <select
-                        className="border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                        className="border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
                         value={r.chargeType}
                         onChange={(e) =>
                           update(r.id, { chargeType: e.target.value as 'foreign' | 'domestic' })
@@ -152,7 +152,7 @@ export default function Home() {
                         type="number"
                         min="0"
                         step="0.01"
-                        className="w-28 border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-28 border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                         placeholder="0.00"
                         value={r.thbAmount || ''}
                         onChange={(e) => update(r.id, { thbAmount: parseFloat(e.target.value) || 0 })}
@@ -164,7 +164,7 @@ export default function Home() {
                           type="number"
                           min="0"
                           step="0.01"
-                          className="w-20 border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          className="w-20 border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                           placeholder="20"
                           value={r.usdAmount ?? ''}
                           onChange={(e) =>
@@ -181,7 +181,7 @@ export default function Home() {
                           type="number"
                           min="0"
                           step="0.0001"
-                          className="w-24 border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          className="w-24 border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                           placeholder="653.87"
                           value={r.exchangeRate ?? ''}
                           onChange={(e) =>
