@@ -23,10 +23,18 @@ const CHARGE_DOCS: Record<string, string[]> = {
   domestic: ['credit_card', 'ppnd36'],
 };
 
-const TAX_RATE = 5;
+const WHT_RATE = 5;
+const VAT_RATE = 7;
 
 function calcWht(thbAmount: number): number {
-  return (thbAmount * TAX_RATE) / (100 - TAX_RATE);
+  return Math.round((thbAmount * WHT_RATE) / (100 - WHT_RATE) * 100) / 100;
+}
+function calcVat(thbAmount: number): number {
+  const wht = calcWht(thbAmount);
+  return Math.round((thbAmount + wht) * VAT_RATE / 100 * 100) / 100;
+}
+function calcTotalPaid(thbAmount: number): number {
+  return Math.round((thbAmount + calcWht(thbAmount)) * 100) / 100;
 }
 
 function newRecord(): ChargeRecord {
@@ -109,13 +117,17 @@ export default function Home() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">THB Amount</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">USD</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Rate</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">WHT (5/95)</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">WHT 5/95</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">VAT 7%</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Total Paid</th>
                 <th className="px-4 py-3 w-8"></th>
               </tr>
             </thead>
             <tbody>
               {records.map((r, idx) => {
                 const wht = calcWht(r.thbAmount);
+                  const vat = calcVat(r.thbAmount);
+                  const totalPaid = calcTotalPaid(r.thbAmount);
                 return (
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
@@ -195,6 +207,12 @@ export default function Home() {
                     <td className="px-4 py-3 text-right font-mono text-gray-600">
                       {r.thbAmount > 0 ? wht.toFixed(2) : '—'}
                     </td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-600">
+                      {r.thbAmount > 0 ? vat.toFixed(2) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-semibold text-gray-700">
+                      {r.thbAmount > 0 ? totalPaid.toFixed(2) : '—'}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => removeRecord(r.id)}
@@ -232,17 +250,26 @@ export default function Home() {
               );
             })}
           </div>
-          <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 text-sm">
+          <div className="pt-4 border-t border-gray-100 grid grid-cols-3 gap-4 text-sm">
             <div>
-              <span className="text-gray-500">รวม Credit (THB): </span>
+              <div className="text-gray-400 text-xs mb-0.5">ชุดที่ 1 — จ่ายบัตรเครดิต</div>
+              <span className="text-gray-500">Total Paid: </span>
               <span className="font-mono font-semibold">
-                {records.reduce((s, r) => s + r.thbAmount, 0).toFixed(2)}
+                {records.reduce((s, r) => s + calcTotalPaid(r.thbAmount), 0).toFixed(2)}
               </span>
             </div>
             <div>
-              <span className="text-gray-500">รวม WHT Debit (5/95): </span>
+              <div className="text-gray-400 text-xs mb-0.5">ชุดที่ 2 — ภ.ง.ด.54</div>
+              <span className="text-gray-500">WHT (5/95): </span>
               <span className="font-mono font-semibold">
-                {records.reduce((s, r) => s + calcWht(r.thbAmount), 0).toFixed(2)}
+                {records.filter(r => r.chargeType === 'foreign').reduce((s, r) => s + calcWht(r.thbAmount), 0).toFixed(2)}
+              </span>
+            </div>
+            <div>
+              <div className="text-gray-400 text-xs mb-0.5">ชุดที่ 3 — ภ.พ.36</div>
+              <span className="text-gray-500">VAT (7%): </span>
+              <span className="font-mono font-semibold">
+                {records.reduce((s, r) => s + calcVat(r.thbAmount), 0).toFixed(2)}
               </span>
             </div>
           </div>

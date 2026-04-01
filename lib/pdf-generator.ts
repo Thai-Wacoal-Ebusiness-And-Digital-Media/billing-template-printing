@@ -8,17 +8,38 @@ export interface ChargeRecord {
   serviceName: string;
   serviceType: string;
   chargeType: 'foreign' | 'domestic';
-  thbAmount: number;
-  usdAmount?: number;
-  exchangeRate?: number;
+  thbAmount: number;       // Net THB amount (service cost)
+  usdAmount?: number;      // For display in description line
+  exchangeRate?: number;   // For display purposes
 }
 
-interface FieldConfig {
+// Computed amounts per record
+interface RecordAmounts {
+  record: ChargeRecord;
+  thbNet: number;          // = record.thbAmount
+  wht: number;             // = thbNet * whtRate / (100 - whtRate)
+  totalPaid: number;       // = thbNet + wht
+  vat: number;             // = totalPaid * vatRate / 100
+}
+
+interface FieldPos {
   x: number;
   y: number;
   fontSize: number;
   align?: string;
   bold?: boolean;
+}
+
+interface Positions {
+  debit_desc: FieldPos;
+  wht_debit_baht: FieldPos;
+  wht_debit_satang: FieldPos;
+  amount_words: FieldPos;
+  total_debit_baht: FieldPos;
+  total_debit_satang: FieldPos;
+  total_credit_baht: FieldPos;
+  total_credit_satang: FieldPos;
+  department: FieldPos;
 }
 
 interface LineItemConfig {
@@ -32,192 +53,237 @@ interface LineItemConfig {
   formulaFontSize: number;
 }
 
-interface DocumentConfig {
-  name: string;
+interface FormTemplate {
   referenceImage: string;
   pageWidth: number;
   pageHeight: number;
-  taxRate: number;
   font: string;
   boldFont: string;
-  fields: Record<string, FieldConfig>;
-  lineItems: LineItemConfig | Record<string, never>;
+  positions: Positions;
+  lineItems: LineItemConfig;
+}
+
+interface DocumentDef {
+  name: string;
+  debitLabel: string;
+  debitCalc: 'totalPaid' | 'totalWHT' | 'totalVAT';
+  creditCalc: 'service' | 'wht' | 'vat';
+  formulaType: 'none' | 'wht' | 'vat';
+  extraCreditLine?: string;
+  extraCreditCalc?: 'totalWHT';
+  whtRate: number;
+  vatRate?: number;
 }
 
 interface TemplateConfig {
   chargeTypes: Record<string, { label: string; documents: string[] }>;
-  documents: Record<string, DocumentConfig>;
+  formTemplate: FormTemplate;
+  documents: Record<string, DocumentDef>;
+}
+
+// ─── helpers ───────────────────────────────────────────────────────────────
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function splitBahtSatang(amount: number): { baht: number; satang: number } {
-  const rounded = Math.round(amount * 100) / 100;
-  const baht = Math.floor(rounded);
-  const satang = Math.round((rounded - baht) * 100);
-  return { baht, satang };
+  const r = round2(amount);
+  const baht = Math.floor(r);
+  return { baht, satang: Math.round((r - baht) * 100) };
 }
 
 function pad2(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
-function drawTextField(
+function computeAmounts(r: ChargeRecord, whtRate: number, vatRate: number): RecordAmounts {
+  const thbNet = r.thbAmount;
+  const wht = round2((thbNet * whtRate) / (100 - whtRate));
+  const totalPaid = round2(thbNet + wht);
+  const vat = round2(totalPaid * vatRate / 100);
+  return { record: r, thbNet, wht, totalPaid, vat };
+}
+
+function drawAt(
   doc: PDFKit.PDFDocument,
   text: string,
-  field: FieldConfig,
+  pos: FieldPos,
   regularFont: string,
   boldFont: string
 ): void {
-  const font = field.bold ? boldFont : regularFont;
-  doc.font(font).fontSize(field.fontSize);
-
-  if (field.align === 'right') {
-    // Draw right-aligned by measuring text width
+  doc.font(pos.bold ? boldFont : regularFont).fontSize(pos.fontSize).fillColor('black');
+  if (pos.align === 'right') {
     const w = doc.widthOfString(text);
-    doc.text(text, field.x - w, field.y, { lineBreak: false });
+    doc.text(text, pos.x - w, pos.y, { lineBreak: false });
   } else {
-    doc.text(text, field.x, field.y, { lineBreak: false });
+    doc.text(text, pos.x, pos.y, { lineBreak: false });
   }
 }
 
-async function generateDocumentPage(
+function drawCredit(
   doc: PDFKit.PDFDocument,
-  docConfig: DocumentConfig,
-  records: ChargeRecord[],
-  isFirstPage: boolean
-): Promise<void> {
+  amount: number,
+  y: number,
+  li: LineItemConfig,
+  regularFont: string
+): void {
+  const { baht, satang } = splitBahtSatang(amount);
+  doc.font(regularFont).fontSize(li.fontSize).fillColor('black');
+  const w = doc.widthOfString(baht.toString());
+  doc.text(baht.toString(), li.creditBahtX - w, y, { lineBreak: false });
+  doc.text(pad2(satang), li.creditSatangX, y, { lineBreak: false });
+}
+
+// ─── page renderer ──────────────────────────────────────────────────────────
+
+function renderPage(
+  doc: PDFKit.PDFDocument,
+  form: FormTemplate,
+  docDef: DocumentDef,
+  amounts: RecordAmounts[],
+  isFirst: boolean
+): void {
   const cwd = process.cwd();
-  const regularFont = path.resolve(cwd, docConfig.font);
-  const boldFont = path.resolve(cwd, docConfig.boldFont);
+  const regularFont = path.resolve(cwd, form.font);
+  const boldFont = path.resolve(cwd, form.boldFont);
+  const pos = form.positions;
+  const li = form.lineItems;
+  const whtRate = docDef.whtRate;
+  const vatRate = docDef.vatRate ?? 7;
 
-  if (!isFirstPage) {
-    doc.addPage({ size: [docConfig.pageWidth, docConfig.pageHeight], margin: 0 });
+  if (!isFirst) {
+    doc.addPage({ size: [form.pageWidth, form.pageHeight], margin: 0 });
   }
 
-  // White background (blank — text only for printing on pre-printed form)
-  doc.rect(0, 0, docConfig.pageWidth, docConfig.pageHeight).fill('white');
+  // White page
+  doc.rect(0, 0, form.pageWidth, form.pageHeight).fill('white');
 
-  const fields = docConfig.fields;
-  const liConfig = docConfig.lineItems as LineItemConfig;
-
-  if (!fields || Object.keys(fields).length === 0 || !liConfig || !liConfig.startY) {
-    // Template not yet configured — show title + placeholder note
-    doc.font(boldFont).fontSize(16).fillColor('#333333')
-      .text(docConfig.name, 40, 40, { lineBreak: false });
-    doc.font(regularFont).fontSize(11).fillColor('#cc0000')
-      .text('[template positions not yet configured — add PNG and coordinates to config/templates.json]', 40, 70, { lineBreak: false });
-    doc.fillColor('black');
-    return;
-  }
-
-  // Document title at top of page (for on-screen identification)
+  // ── Document title (for on-screen ID) ──────────────────────────────────
   doc.font(boldFont).fontSize(16).fillColor('#333333')
-    .text(docConfig.name, 40, 40, { lineBreak: false });
-  doc.fillColor('black');
+    .text(docDef.name, 40, 40, { lineBreak: false });
 
-  const taxRate = docConfig.taxRate;
+  // ── Compute totals ──────────────────────────────────────────────────────
+  const totalWHT   = round2(amounts.reduce((s, a) => s + a.wht, 0));
+  const totalPaid  = round2(amounts.reduce((s, a) => s + a.totalPaid, 0));
+  const totalVAT   = round2(amounts.reduce((s, a) => s + a.vat, 0));
+  const totalService = round2(amounts.reduce((s, a) => s + a.thbNet, 0));
 
-  // Compute per-record WHT amounts
-  // Both DEBIT and CREDIT in this voucher represent the WHT amount only.
-  // The gross THB amount appears only in the formula text (audit trail).
-  const recordAmounts = records.map((r) => {
-    const wht = (r.thbAmount * taxRate) / (100 - taxRate);
-    return { record: r, wht };
-  });
+  const debitTotal =
+    docDef.debitCalc === 'totalPaid' ? totalPaid :
+    docDef.debitCalc === 'totalWHT'  ? totalWHT  :
+    totalVAT;
 
-  const totalWht = recordAmounts.reduce((s, r) => s + r.wht, 0);
+  // ── Debit description + amount ──────────────────────────────────────────
+  drawAt(doc, docDef.debitLabel, pos.debit_desc, regularFont, boldFont);
 
-  // Draw line items (CREDIT side — each shows WHT portion, not gross THB)
-  recordAmounts.forEach(({ record, wht }, idx) => {
-    const y = liConfig.startY + idx * liConfig.lineHeight;
+  const { baht: dBaht, satang: dSatang } = splitBahtSatang(debitTotal);
+  drawAt(doc, dBaht.toString(), pos.wht_debit_baht, regularFont, boldFont);
+  drawAt(doc, pad2(dSatang), pos.wht_debit_satang, regularFont, boldFont);
 
-    // Description: "1. SERVICE - type  (USD X)" for foreign, "1. SERVICE - type" for domestic
-    let desc = `${idx + 1}. ${record.serviceName} - ${record.serviceType}`;
-    if (record.chargeType === 'foreign' && record.usdAmount) {
-      desc += `  (USD ${record.usdAmount})`;
+  // ── Credit line items ───────────────────────────────────────────────────
+  let lineIdx = 0;
+
+  amounts.forEach((a, idx) => {
+    const y = li.startY + lineIdx * li.lineHeight;
+
+    // Description
+    let desc = `${idx + 1}. ${a.record.serviceName} - ${a.record.serviceType}`;
+    if (a.record.chargeType === 'foreign' && a.record.usdAmount) {
+      desc += `  (USD ${a.record.usdAmount})`;
+    }
+    doc.font(regularFont).fontSize(li.fontSize).fillColor('black')
+      .text(desc, li.descriptionX, y, { lineBreak: false });
+
+    // Formula line
+    if (docDef.formulaType === 'wht') {
+      const formula = `(${a.thbNet.toFixed(2)}*${whtRate}/${100 - whtRate})=${a.wht.toFixed(2)}`;
+      doc.font(regularFont).fontSize(li.formulaFontSize).fillColor('black')
+        .text(formula, li.descriptionX, y + li.formulaOffsetY, { lineBreak: false });
+    } else if (docDef.formulaType === 'vat') {
+      const formula = `(${a.thbNet.toFixed(2)}+${a.wht.toFixed(2)})*${vatRate}/100=${a.vat.toFixed(2)}`;
+      doc.font(regularFont).fontSize(li.formulaFontSize).fillColor('black')
+        .text(formula, li.descriptionX, y + li.formulaOffsetY, { lineBreak: false });
     }
 
-    doc.font(regularFont).fontSize(liConfig.fontSize).fillColor('black')
-      .text(desc, liConfig.descriptionX, y, { lineBreak: false });
+    // Credit amount
+    const creditAmt =
+      docDef.creditCalc === 'service' ? a.thbNet :
+      docDef.creditCalc === 'wht'     ? a.wht    :
+      a.vat;
 
-    // Formula: (thbAmount * taxRate / (100-taxRate)) = wht
-    const formula = `(${record.thbAmount.toFixed(2)}*${taxRate}/${100 - taxRate})=${wht.toFixed(2)}`;
-    doc.font(regularFont).fontSize(liConfig.formulaFontSize).fillColor('black')
-      .text(formula, liConfig.descriptionX, y + liConfig.formulaOffsetY, { lineBreak: false });
-
-    // Credit amount = WHT (not gross THB)
-    const { baht, satang } = splitBahtSatang(wht);
-    const creditBahtW = doc.font(regularFont).fontSize(liConfig.fontSize).widthOfString(baht.toString());
-    doc.text(baht.toString(), liConfig.creditBahtX - creditBahtW, y, { lineBreak: false });
-    doc.text(pad2(satang), liConfig.creditSatangX, y, { lineBreak: false });
+    drawCredit(doc, creditAmt, y, li, regularFont);
+    lineIdx++;
   });
 
-  // DEBIT row = total WHT
-  const { baht: whtBaht, satang: whtSatang } = splitBahtSatang(totalWht);
-  drawTextField(doc, whtBaht.toString(), fields.wht_debit_baht, regularFont, boldFont);
-  drawTextField(doc, pad2(whtSatang), fields.wht_debit_satang, regularFont, boldFont);
-
-  // TOTAL row — both debit and credit equal totalWht
-  const { baht: totalBaht, satang: totalSatang } = splitBahtSatang(totalWht);
-  drawTextField(doc, totalBaht.toString(), fields.total_debit_baht, regularFont, boldFont);
-  drawTextField(doc, pad2(totalSatang), fields.total_debit_satang, regularFont, boldFont);
-  drawTextField(doc, totalBaht.toString(), fields.total_credit_baht, regularFont, boldFont);
-  drawTextField(doc, pad2(totalSatang), fields.total_credit_satang, regularFont, boldFont);
-
-  // Amount in Thai words = WHT total
-  drawTextField(doc, toThaiText(totalWht), fields.amount_words, regularFont, boldFont);
-
-  // Department
-  if (fields.department) {
-    drawTextField(doc, 'E-Business & Digital Media', fields.department, regularFont, boldFont);
+  // Extra credit line (ชุดที่ 1 only — Acc.Withholding WHT line)
+  if (docDef.extraCreditLine && docDef.extraCreditCalc) {
+    const y = li.startY + lineIdx * li.lineHeight;
+    doc.font(regularFont).fontSize(li.fontSize).fillColor('black')
+      .text(docDef.extraCreditLine, li.descriptionX, y, { lineBreak: false });
+    const extraAmt = docDef.extraCreditCalc === 'totalWHT' ? totalWHT : 0;
+    drawCredit(doc, extraAmt, y, li, regularFont);
+    lineIdx++;
   }
+
+  // ── Department ──────────────────────────────────────────────────────────
+  drawAt(doc, 'E-Business & Digital Media', pos.department, regularFont, boldFont);
+
+  // ── Total row ───────────────────────────────────────────────────────────
+  const { baht: tBaht, satang: tSatang } = splitBahtSatang(debitTotal);
+  drawAt(doc, tBaht.toString(), pos.total_debit_baht,   regularFont, boldFont);
+  drawAt(doc, pad2(tSatang),   pos.total_debit_satang,  regularFont, boldFont);
+  drawAt(doc, tBaht.toString(), pos.total_credit_baht,  regularFont, boldFont);
+  drawAt(doc, pad2(tSatang),   pos.total_credit_satang, regularFont, boldFont);
+
+  // ── Thai words ──────────────────────────────────────────────────────────
+  drawAt(doc, toThaiText(debitTotal), pos.amount_words, regularFont, boldFont);
 }
+
+// ─── public entry point ─────────────────────────────────────────────────────
 
 export async function generateCombinedPdf(records: ChargeRecord[]): Promise<Buffer> {
   const configPath = path.resolve(process.cwd(), 'config/templates.json');
   const config: TemplateConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-  // Determine which documents are needed
+  const form = config.formTemplate;
+
+  // Which documents are needed across all records
   const neededDocs = new Set<string>();
-  for (const record of records) {
-    const chargeConfig = config.chargeTypes[record.chargeType];
-    if (chargeConfig) {
-      chargeConfig.documents.forEach((d) => neededDocs.add(d));
-    }
+  for (const r of records) {
+    (config.chargeTypes[r.chargeType]?.documents ?? []).forEach(d => neededDocs.add(d));
   }
+  const docOrder = ['credit_card', 'pnd54', 'ppnd36'].filter(d => neededDocs.has(d));
 
-  // Order: credit_card → pnd54 → ppnd36
-  const docOrder = ['credit_card', 'pnd54', 'ppnd36'].filter((d) => neededDocs.has(d));
-
-  // Get page size from first doc
-  const firstDocKey = docOrder[0];
-  const firstDoc = config.documents[firstDocKey];
-
-  const doc = new PDFDocument({
-    size: [firstDoc.pageWidth, firstDoc.pageHeight],
+  const pdfDoc = new PDFDocument({
+    size: [form.pageWidth, form.pageHeight],
     margin: 0,
     autoFirstPage: true,
   });
 
   const chunks: Buffer[] = [];
-  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  pdfDoc.on('data', (c: Buffer) => chunks.push(c));
 
   for (let i = 0; i < docOrder.length; i++) {
     const docKey = docOrder[i];
-    const docConfig = config.documents[docKey];
+    const docDef = config.documents[docKey];
 
-    // Filter records that need this document
-    const relevantRecords = records.filter((r) =>
+    // Records that need this document
+    const relevant = records.filter(r =>
       config.chargeTypes[r.chargeType].documents.includes(docKey)
     );
+    if (relevant.length === 0) continue;
 
-    if (relevantRecords.length === 0) continue;
+    // Compute amounts for each record using this doc's rates
+    const whtRate = docDef.whtRate ?? 5;
+    const vatRate = docDef.vatRate ?? 7;
+    const amounts = relevant.map(r => computeAmounts(r, whtRate, vatRate));
 
-    await generateDocumentPage(doc, docConfig, relevantRecords, i === 0);
+    renderPage(pdfDoc, form, docDef, amounts, i === 0);
   }
 
-  doc.end();
-
-  return new Promise((resolve) => {
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
+  pdfDoc.end();
+  return new Promise(resolve => {
+    pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
   });
 }
