@@ -2,11 +2,17 @@
   "chargeTypes": {
     "foreign": {
       "label": "Foreign Service (USD/สกุลเงินต่างประเทศ)",
-      "documents": ["credit_card", "pnd54", "ppnd36"]
+      "documents": [
+        "credit_card",
+        "pnd54",
+        "ppnd36"
+      ]
     },
     "domestic": {
       "label": "Thai Service (THB/บริการในประเทศ)",
-      "documents": ["credit_card", "ppnd36"]
+      "documents": [
+        "ppnd36"
+      ]
     }
   },
   "formTemplate": {
@@ -15,18 +21,61 @@
     "pageHeight": 915,
     "paperWidthMm": 210,
     "paperHeightMm": 153,
-    "font": "public/fonts/THSarabunNew.ttf",
-    "boldFont": "public/fonts/THSarabunNew Bold.ttf",
+    "font": "public/fonts/Kanit-Regular.ttf",
+    "boldFont": "public/fonts/Kanit-Bold.ttf",
     "positions": {
-      "debit_desc":          { "x": 530,  "y": 305, "fontSize": 14 },
-      "wht_debit_baht":      { "x": 990,  "y": 320, "fontSize": 14, "align": "right" },
-      "wht_debit_satang":    { "x": 1045, "y": 320, "fontSize": 14, "align": "right" },
-      "amount_words":        { "x": 185,  "y": 700, "fontSize": 16, "bold": true },
-      "total_debit_baht":    { "x": 990,  "y": 700, "fontSize": 14, "align": "right" },
-      "total_debit_satang":  { "x": 1045, "y": 700, "fontSize": 14, "align": "right" },
-      "total_credit_baht":   { "x": 1160, "y": 700, "fontSize": 14, "align": "right" },
-      "total_credit_satang": { "x": 1215, "y": 700, "fontSize": 14, "align": "right" },
-      "department":          { "x": 645,  "y": 610, "fontSize": 14 }
+      "debit_desc": {
+        "x": 530,
+        "y": 305,
+        "fontSize": 24
+      },
+      "wht_debit_baht": {
+        "x": 990,
+        "y": 320,
+        "fontSize": 24,
+        "align": "right"
+      },
+      "wht_debit_satang": {
+        "x": 1045,
+        "y": 320,
+        "fontSize": 24,
+        "align": "right"
+      },
+      "amount_words": {
+        "x": 185,
+        "y": 700,
+        "fontSize": 24,
+        "bold": true
+      },
+      "total_debit_baht": {
+        "x": 990,
+        "y": 700,
+        "fontSize": 24,
+        "align": "right"
+      },
+      "total_debit_satang": {
+        "x": 1045,
+        "y": 700,
+        "fontSize": 24,
+        "align": "right"
+      },
+      "total_credit_baht": {
+        "x": 1160,
+        "y": 700,
+        "fontSize": 24,
+        "align": "right"
+      },
+      "total_credit_satang": {
+        "x": 1215,
+        "y": 700,
+        "fontSize": 24,
+        "align": "right"
+      },
+      "department": {
+        "x": 645,
+        "y": 610,
+        "fontSize": 24
+      }
     },
     "lineItems": {
       "startY": 418,
@@ -35,24 +84,24 @@
       "formulaOffsetY": 25,
       "creditBahtX": 1160,
       "creditSatangX": 1215,
-      "fontSize": 14,
-      "formulaFontSize": 12
+      "fontSize": 24,
+      "formulaFontSize": 22
     }
   },
   "documents": {
     "credit_card": {
       "name": "จ่ายบัตรเครดิต",
-      "debitLabel": "จ่ายบัตรเครดิต - ล้างตัวตั้งจ่าย",
+      "debitLabel": "จ่ายบัตรเครดิต - ล้างค้างจ่าย",
       "debitCalc": "totalPaid",
       "creditCalc": "service",
-      "extraCreditLine": "Acc.Withholding *ภงด.54 (ภาษีหัก ณ ที่จ่าย ออกให้)",
+      "extraCreditLine": "*ภงด.54 (ภาษีหัก ณ ที่จ่าย ออกให้)",
       "extraCreditCalc": "totalWHT",
       "formulaType": "none",
       "whtRate": 5
     },
     "pnd54": {
-      "name": "รายการนำส่งภาษีหัก ณ ที่จ่าย (ภ.ง.ด.54) *ภาษีออกให้*",
-      "debitLabel": "รายการนำส่งภาษีหัก ณ ที่จ่าย (ภ.ง.ด.54) *ภาษีออกให้*",
+      "name": "รายการนำส่งภาษีหัก ณ ที่จ่าย (ภ.ง.ด.54)\\n*ภาษีออกให้*",
+      "debitLabel": "รายการนำส่งภาษีหัก ณ ที่จ่าย (ภ.ง.ด.54)\\n*ภาษีออกให้*",
       "debitCalc": "totalWHT",
       "creditCalc": "wht",
       "formulaType": "wht",

@@ -115,11 +115,16 @@ function drawAt(
   boldFont: string
 ): void {
   doc.font(pos.bold ? boldFont : regularFont).fontSize(pos.fontSize).fillColor('black');
-  if (pos.align === 'right') {
-    const w = doc.widthOfString(text);
-    doc.text(text, pos.x - w, pos.y, { lineBreak: false });
-  } else {
-    doc.text(text, pos.x, pos.y, { lineBreak: false });
+  const lines = text.split(/\r?\n|\\n/);
+  let currentY = pos.y;
+  for (const line of lines) {
+    if (pos.align === 'right') {
+      const w = doc.widthOfString(line);
+      doc.text(line, pos.x - w, currentY, { lineBreak: false });
+    } else {
+      doc.text(line, pos.x, currentY, { lineBreak: false });
+    }
+    currentY += pos.fontSize * 1.2;
   }
 }
 

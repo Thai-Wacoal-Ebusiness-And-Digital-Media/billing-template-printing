@@ -20,7 +20,7 @@ const DOC_LABELS: Record<string, string> = {
 
 const CHARGE_DOCS: Record<string, string[]> = {
   foreign: ['credit_card', 'pnd54', 'ppnd36'],
-  domestic: ['credit_card', 'ppnd36'],
+  domestic: ['ppnd36'],
 };
 
 const WHT_RATE = 5;
@@ -37,9 +37,9 @@ function calcTotalPaid(thbAmount: number): number {
   return Math.round((thbAmount + calcWht(thbAmount)) * 100) / 100;
 }
 
-function newRecord(): ChargeRecord {
+function newRecord(id?: string): ChargeRecord {
   return {
-    id: crypto.randomUUID(),
+    id: id ?? crypto.randomUUID(),
     serviceName: '',
     serviceType: 'ค่าบริการ',
     chargeType: 'foreign',
@@ -49,8 +49,10 @@ function newRecord(): ChargeRecord {
   };
 }
 
+const INITIAL_RECORD = newRecord('initial');
+
 export default function Home() {
-  const [records, setRecords] = useState<ChargeRecord[]>([newRecord()]);
+  const [records, setRecords] = useState<ChargeRecord[]>([INITIAL_RECORD]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,198 +99,224 @@ export default function Home() {
     }
   };
 
+  const totalPaidSum = records.reduce((s, r) => s + calcTotalPaid(r.thbAmount), 0);
+  const totalWhtSum = records.filter(r => r.chargeType === 'foreign').reduce((s, r) => s + calcWht(r.thbAmount), 0);
+  const totalVatSum = records.reduce((s, r) => s + calcVat(r.thbAmount), 0);
+  const subtotalSum = records.reduce((s, r) => s + r.thbAmount, 0);
+
   return (
-    <main className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">ใบจ่ายเงิน / Payment Voucher</h1>
-        <p className="text-sm text-gray-500 mb-6">
-          บริษัท ไทยวาโก้ จำกัด (มหาชน) — E-Business &amp; Digital Media
-        </p>
-
-        {/* Records table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto mb-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-6">#</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Service Name</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Type / รายการ</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Charge Type</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">THB Amount</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">USD</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Rate</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">WHT 5/95</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">VAT 7%</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Total Paid</th>
-                <th className="px-4 py-3 w-8"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r, idx) => {
-                const wht = calcWht(r.thbAmount);
-                  const vat = calcVat(r.thbAmount);
-                  const totalPaid = calcTotalPaid(r.thbAmount);
-                return (
-                  <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                    <td className="px-4 py-3">
-                      <input
-                        className="w-full border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        placeholder="e.g. CLAUDE.AI"
-                        value={r.serviceName}
-                        onChange={(e) => update(r.id, { serviceName: e.target.value })}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        className="w-full border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        placeholder="e.g. ค่าบริการ"
-                        value={r.serviceType}
-                        onChange={(e) => update(r.id, { serviceType: e.target.value })}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        className="border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
-                        value={r.chargeType}
-                        onChange={(e) =>
-                          update(r.id, { chargeType: e.target.value as 'foreign' | 'domestic' })
-                        }
-                      >
-                        <option value="foreign">Foreign (USD)</option>
-                        <option value="domestic">Domestic (THB)</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="w-28 border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        placeholder="0.00"
-                        value={r.thbAmount || ''}
-                        onChange={(e) => update(r.id, { thbAmount: parseFloat(e.target.value) || 0 })}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.chargeType === 'foreign' && (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="w-20 border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          placeholder="20"
-                          value={r.usdAmount ?? ''}
-                          onChange={(e) =>
-                            update(r.id, {
-                              usdAmount: e.target.value ? parseFloat(e.target.value) : undefined,
-                            })
-                          }
-                        />
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.chargeType === 'foreign' && (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.0001"
-                          className="w-24 border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          placeholder="653.87"
-                          value={r.exchangeRate ?? ''}
-                          onChange={(e) =>
-                            update(r.id, {
-                              exchangeRate: e.target.value ? parseFloat(e.target.value) : undefined,
-                            })
-                          }
-                        />
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-600">
-                      {r.thbAmount > 0 ? wht.toFixed(2) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-600">
-                      {r.thbAmount > 0 ? vat.toFixed(2) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-semibold text-gray-700">
-                      {r.thbAmount > 0 ? totalPaid.toFixed(2) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => removeRecord(r.id)}
-                        className="text-gray-300 hover:text-red-400 transition-colors text-xl leading-none"
-                        title="Remove"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+    <div className="min-h-screen flex flex-col bg-surface">
+      <header className="bg-surface dark:bg-stone-950 flex justify-between items-center w-full px-8 py-4 sticky top-0 z-50 shadow-sm dark:shadow-none border-b border-outline-variant/60 dark:border-stone-800">
+        <div className="flex items-center gap-8">
+          <span className="text-xl font-bold font-headline italic pr-2 text-primary dark:text-[#d48451]">
+            Payment Voucher Generator
+          </span>
         </div>
+        <div className="flex items-center gap-4">
+          <button onClick={addRecord} className="px-5 py-2 text-sm font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-all active:scale-[0.99] flex items-center gap-1">
+            <span className="material-symbols-outlined text-sm">add</span>
+            Add Record
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/10 transition-all active:scale-[0.99] disabled:opacity-50 flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-sm">download</span>
+            {loading ? 'Generating...' : 'Generate PDF'}
+          </button>
+        </div>
+      </header>
 
-        <button
-          onClick={addRecord}
-          className="mb-8 text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-        >
-          + เพิ่มรายการ
-        </button>
+      <div className="flex flex-1 overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-7xl mx-auto space-y-8">
+            <div className="flex justify-between items-end">
+              <div>
+                <h1 className="font-headline text-4xl italic text-on-background">Voucher Templates</h1>
+                <p className="text-secondary font-body mt-2">Thai Wacoal PLC — E-Business & Digital Media</p>
+              </div>
+              <div className="flex gap-2">
+                {docOrder.map(d => (
+                  <span key={d} className="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full uppercase tracking-wider">
+                    {DOC_LABELS[d]}
+                  </span>
+                ))}
+              </div>
+            </div>
 
-        {/* Summary */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">เอกสารที่จะสร้าง</h2>
-          <div className="flex flex-wrap gap-3 mb-4">
-            {docOrder.map((key) => {
-              const count = records.filter((r) => CHARGE_DOCS[r.chargeType].includes(key)).length;
-              return (
-                <div key={key} className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
-                  <div className="text-sm font-medium text-blue-800">{DOC_LABELS[key]}</div>
-                  <div className="text-xs text-blue-500">{count} รายการ</div>
+            {error && (
+              <div className="bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium flex items-center gap-2 border border-error/20">
+                <span className="material-symbols-outlined">error</span>
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-8">
+              <div className="bg-surface-container-lowest rounded-xl shadow-soft p-8 border border-outline-variant/60 overflow-hidden">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-headline text-2xl text-on-background">Charge Records</h3>
                 </div>
-              );
-            })}
-          </div>
-          <div className="pt-4 border-t border-gray-100 grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <div className="text-gray-400 text-xs mb-0.5">ชุดที่ 1 — จ่ายบัตรเครดิต</div>
-              <span className="text-gray-500">Total Paid: </span>
-              <span className="font-mono font-semibold">
-                {records.reduce((s, r) => s + calcTotalPaid(r.thbAmount), 0).toFixed(2)}
-              </span>
-            </div>
-            <div>
-              <div className="text-gray-400 text-xs mb-0.5">ชุดที่ 2 — ภ.ง.ด.54</div>
-              <span className="text-gray-500">WHT (5/95): </span>
-              <span className="font-mono font-semibold">
-                {records.filter(r => r.chargeType === 'foreign').reduce((s, r) => s + calcWht(r.thbAmount), 0).toFixed(2)}
-              </span>
-            </div>
-            <div>
-              <div className="text-gray-400 text-xs mb-0.5">ชุดที่ 3 — ภ.พ.36</div>
-              <span className="text-gray-500">VAT (7%): </span>
-              <span className="font-mono font-semibold">
-                {records.reduce((s, r) => s + calcVat(r.thbAmount), 0).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
 
-        {error && (
-          <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-            {error}
-          </div>
-        )}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-[11px] font-bold text-secondary uppercase tracking-widest border-b border-outline-variant/40">
+                        <th className="pb-4 px-2">Service Name</th>
+                        <th className="pb-4 px-2">Service Type</th>
+                        <th className="pb-4 px-2">Charge Type</th>
+                        <th className="pb-4 px-2 text-right">Amount (THB)</th>
+                        <th className="pb-4 px-2 text-right">USD</th>
+                        <th className="pb-4 px-2 text-right">Rate</th>
+                        <th className="pb-4 px-2 text-right text-tertiary">WHT (5/95)</th>
+                        <th className="pb-4 px-2 text-right text-on-primary-fixed-variant">VAT (7%)</th>
+                        <th className="pb-4 px-2 text-right">Total Paid</th>
+                        <th className="pb-4 px-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/20">
+                      {records.map(r => {
+                        const wht = calcWht(r.thbAmount);
+                        const vat = calcVat(r.thbAmount);
+                        const totalPaid = calcTotalPaid(r.thbAmount);
+                        return (
+                          <tr key={r.id} className="group hover:bg-surface-container-low/30 transition-colors">
+                            <td className="py-4 px-2">
+                              <input
+                                className="w-full bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 focus:bg-white transition-colors focus:outline-none"
+                                placeholder="e.g. AWS"
+                                type="text"
+                                value={r.serviceName}
+                                onChange={(e) => update(r.id, { serviceName: e.target.value })}
+                              />
+                            </td>
+                            <td className="py-4 px-2">
+                              <input
+                                className="w-full bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 text-left focus:bg-white transition-colors focus:outline-none"
+                                type="text"
+                                placeholder="ค่าบริการ"
+                                value={r.serviceType}
+                                onChange={(e) => update(r.id, { serviceType: e.target.value })}
+                              />
+                            </td>
+                            <td className="py-4 px-2">
+                              <select
+                                className="w-full bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 focus:bg-white transition-colors focus:outline-none appearance-none cursor-pointer"
+                                value={r.chargeType}
+                                onChange={(e) => update(r.id, { chargeType: e.target.value as 'foreign' | 'domestic' })}
+                              >
+                                <option value="foreign">Foreign (USD)</option>
+                                <option value="domestic">Domestic (THB)</option>
+                              </select>
+                            </td>
+                            <td className="py-4 px-2 text-right">
+                              <input
+                                className="w-24 bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 text-right focus:bg-white transition-colors focus:outline-none"
+                                type="number"
+                                step="any"
+                                value={r.thbAmount || ''}
+                                onChange={(e) => update(r.id, { thbAmount: parseFloat(e.target.value) || 0 })}
+                              />
+                            </td>
+                            <td className="py-4 px-2 text-right">
+                              {r.chargeType === 'foreign' && (
+                                <input
+                                  className="w-20 bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 text-right focus:bg-white transition-colors focus:outline-none"
+                                  type="number"
+                                  step="any"
+                                  value={r.usdAmount ?? ''}
+                                  onChange={(e) => update(r.id, { usdAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                />
+                              )}
+                            </td>
+                            <td className="py-4 px-2 text-right">
+                              {r.chargeType === 'foreign' && (
+                                <input
+                                  className="w-20 bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 text-right focus:bg-white transition-colors focus:outline-none"
+                                  type="number"
+                                  step="any"
+                                  value={r.exchangeRate ?? ''}
+                                  onChange={(e) => update(r.id, { exchangeRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                />
+                              )}
+                            </td>
+                            <td className="py-4 px-2 text-right font-mono text-tertiary">
+                              {r.thbAmount > 0 ? wht.toFixed(2) : '—'}
+                            </td>
+                            <td className="py-4 px-2 text-right font-mono text-on-primary-fixed-variant">
+                              {r.thbAmount > 0 ? vat.toFixed(2) : '—'}
+                            </td>
+                            <td className="py-4 px-2 text-right font-mono font-bold text-on-background">
+                              {r.thbAmount > 0 ? totalPaid.toFixed(2) : '—'}
+                            </td>
+                            <td className="py-4 px-2 text-right">
+                              <button
+                                onClick={() => removeRecord(r.id)}
+                                className="text-outline hover:text-error transition-colors p-1"
+                              >
+                                <span className="material-symbols-outlined text-lg">delete</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-        <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold rounded-xl py-3 transition-colors"
-        >
-          {loading ? 'กำลังสร้าง PDF...' : 'Generate PDF'}
-        </button>
+              <div className="bg-surface-container-highest rounded-xl p-8 border border-outline-variant/60">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div>
+                    <h3 className="font-headline text-xl text-on-background mb-6">Financial Summary</h3>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-secondary">Subtotal Amount</span>
+                        <span className="font-mono font-semibold">{subtotalSum.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-secondary">ภ.ง.ด.54 — WHT (5/95)</span>
+                        <span className="font-mono font-semibold text-tertiary">{totalWhtSum.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-secondary">ภ.พ.36 — VAT (7%)</span>
+                        <span className="font-mono font-semibold text-on-primary-fixed-variant">{totalVatSum.toFixed(2)}</span>
+                      </div>
+                      <div className="pt-4 border-t border-outline-variant flex justify-between items-end">
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-widest text-primary">Credit Card Slip Total</span>
+                          <p className="text-4xl font-headline text-on-background italic block pt-1">{totalPaidSum.toFixed(2)}</p>
+                        </div>
+                        <span className="text-sm text-secondary mb-1 font-bold">THB</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col justify-end">
+                    <div className="space-y-3">
+                      <button
+                        onClick={handleGenerate}
+                        disabled={loading}
+                        className="w-full bg-primary text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.99] disabled:opacity-50 disabled:shadow-none"
+                      >
+                        <span className="material-symbols-outlined">picture_as_pdf</span>
+                        {loading ? 'Generating PDF...' : 'Generate PDF Voucher'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <footer className="pt-8 border-t border-outline-variant/40">
+                <p className="font-sans text-[10px] uppercase tracking-widest text-secondary text-center">
+                  Payment Voucher Generator — Built for Thai Wacoal PLC E-Business & Digital Media
+                </p>
+              </footer>
+
+            </div>
+          </div>
+        </main>
       </div>
-    </main>
+    </div>
   );
 }
