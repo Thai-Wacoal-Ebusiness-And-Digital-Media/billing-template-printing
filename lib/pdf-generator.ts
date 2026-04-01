@@ -149,7 +149,8 @@ function renderPage(
   form: FormTemplate,
   docDef: DocumentDef,
   amounts: RecordAmounts[],
-  _isFirst: boolean   // page management handled by caller
+  _isFirst: boolean,   // page management handled by caller
+  department: string
 ): void {
   const cwd = process.cwd();
   const regularFont = path.resolve(cwd, form.font);
@@ -232,7 +233,7 @@ function renderPage(
   }
 
   // ── Department ──────────────────────────────────────────────────────────
-  drawAt(doc, 'E-Business & Digital Media', pos.department, regularFont, boldFont);
+  drawAt(doc, department, pos.department, regularFont, boldFont);
 
   // ── Total row ───────────────────────────────────────────────────────────
   const { baht: tBaht, satang: tSatang } = splitBahtSatang(debitTotal);
@@ -249,7 +250,7 @@ function renderPage(
 
 const MM_TO_PT = 72 / 25.4; // 1 mm = 72/25.4 PDF points
 
-export async function generateCombinedPdf(records: ChargeRecord[]): Promise<Buffer> {
+export async function generateCombinedPdf(records: ChargeRecord[], department = 'E-Business & Digital Media'): Promise<Buffer> {
   const configPath = path.resolve(process.cwd(), 'config/templates.json');
   const config: TemplateConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
@@ -298,7 +299,7 @@ export async function generateCombinedPdf(records: ChargeRecord[]): Promise<Buff
     }
     pdfDoc.save();
     pdfDoc.transform(scaleX, 0, 0, scaleY, 0, 0);
-    renderPage(pdfDoc, form, docDef, amounts, true /* page already added */);
+    renderPage(pdfDoc, form, docDef, amounts, true /* page already added */, department);
     pdfDoc.restore();
   }
 

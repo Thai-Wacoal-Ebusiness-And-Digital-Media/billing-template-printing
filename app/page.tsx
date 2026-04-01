@@ -54,6 +54,7 @@ const INITIAL_RECORD = newRecord('initial');
 
 export default function Home() {
   const [records, setRecords] = useState<ChargeRecord[]>([INITIAL_RECORD]);
+  const [department, setDepartment] = useState('E-Business & Digital Media');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +81,7 @@ export default function Home() {
       const res = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(records),
+        body: JSON.stringify({ records, department }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -168,7 +169,6 @@ export default function Home() {
                         <th className="pb-4 px-2">Charge Type</th>
                         <th className="pb-4 px-2 text-right">Amount (THB)</th>
                         <th className="pb-4 px-2 text-right">USD</th>
-                        <th className="pb-4 px-2 text-right">Rate</th>
                         <th className="pb-4 px-2 text-right text-tertiary">WHT (5/95)</th>
                         <th className="pb-4 px-2 text-right text-on-primary-fixed-variant">VAT (7%)</th>
                         <th className="pb-4 px-2 text-right">Total Paid</th>
@@ -177,9 +177,9 @@ export default function Home() {
                     </thead>
                     <tbody className="divide-y divide-outline-variant/20">
                       {records.map(r => {
-                        const wht = calcWht(r.thbAmount);
-                        const vat = calcVat(r.thbAmount);
-                        const totalPaid = calcTotalPaid(r.thbAmount);
+                        const wht = r.chargeType === 'domestic' ? 0 : calcWht(r.thbAmount);
+                        const vat = calcVat(r.thbAmount, r.chargeType);
+                        const totalPaid = calcTotalPaid(r.thbAmount, r.chargeType);
                         return (
                           <tr key={r.id} className="group hover:bg-surface-container-low/30 transition-colors">
                             <td className="py-4 px-2">
@@ -230,19 +230,8 @@ export default function Home() {
                                 />
                               )}
                             </td>
-                            <td className="py-4 px-2 text-right">
-                              {r.chargeType === 'foreign' && (
-                                <input
-                                  className="w-20 bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 text-right focus:bg-white transition-colors focus:outline-none"
-                                  type="number"
-                                  step="any"
-                                  value={r.exchangeRate ?? ''}
-                                  onChange={(e) => update(r.id, { exchangeRate: e.target.value ? parseFloat(e.target.value) : undefined })}
-                                />
-                              )}
-                            </td>
                             <td className="py-4 px-2 text-right font-mono text-tertiary">
-                              {r.thbAmount > 0 ? wht.toFixed(2) : '—'}
+                              {r.chargeType === 'domestic' ? '—' : (r.thbAmount > 0 ? wht.toFixed(2) : '—')}
                             </td>
                             <td className="py-4 px-2 text-right font-mono text-on-primary-fixed-variant">
                               {r.thbAmount > 0 ? vat.toFixed(2) : '—'}
@@ -293,7 +282,17 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col justify-end">
+                  <div className="flex flex-col justify-between gap-6">
+                    <div>
+                      <h3 className="font-headline text-xl text-on-background mb-6">Department</h3>
+                      <input
+                        className="w-full bg-surface-container-low border border-transparent focus:border-primary/40 rounded-lg text-sm font-body px-3 py-2 focus:bg-white transition-colors focus:outline-none"
+                        type="text"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        placeholder="Department name"
+                      />
+                    </div>
                     <div className="space-y-3">
                       <button
                         onClick={handleGenerate}
