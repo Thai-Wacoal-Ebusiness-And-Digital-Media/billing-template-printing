@@ -100,29 +100,37 @@ async function generateDocumentPage(
   const liConfig = docConfig.lineItems as LineItemConfig;
 
   if (!fields || Object.keys(fields).length === 0 || !liConfig || !liConfig.startY) {
-    // Template not yet configured — leave blank page
-    doc.font(regularFont).fontSize(12).fillColor('red')
-      .text(`[${docConfig.name} — template positions not yet configured]`, 50, 50, { lineBreak: false });
+    // Template not yet configured — show title + placeholder note
+    doc.font(boldFont).fontSize(16).fillColor('#333333')
+      .text(docConfig.name, 40, 40, { lineBreak: false });
+    doc.font(regularFont).fontSize(11).fillColor('#cc0000')
+      .text('[template positions not yet configured — add PNG and coordinates to config/templates.json]', 40, 70, { lineBreak: false });
     doc.fillColor('black');
     return;
   }
 
+  // Document title at top of page (for on-screen identification)
+  doc.font(boldFont).fontSize(16).fillColor('#333333')
+    .text(docConfig.name, 40, 40, { lineBreak: false });
+  doc.fillColor('black');
+
   const taxRate = docConfig.taxRate;
 
   // Compute per-record WHT amounts
+  // Both DEBIT and CREDIT in this voucher represent the WHT amount only.
+  // The gross THB amount appears only in the formula text (audit trail).
   const recordAmounts = records.map((r) => {
     const wht = (r.thbAmount * taxRate) / (100 - taxRate);
     return { record: r, wht };
   });
 
-  const totalCredit = records.reduce((s, r) => s + r.thbAmount, 0);
   const totalWht = recordAmounts.reduce((s, r) => s + r.wht, 0);
 
-  // Draw line items (CREDIT side)
+  // Draw line items (CREDIT side — each shows WHT portion, not gross THB)
   recordAmounts.forEach(({ record, wht }, idx) => {
     const y = liConfig.startY + idx * liConfig.lineHeight;
 
-    // Description line: "1. SERVICE - type (USD X)" or "1. SERVICE - type"
+    // Description: "1. SERVICE - type  (USD X)" for foreign, "1. SERVICE - type" for domestic
     let desc = `${idx + 1}. ${record.serviceName} - ${record.serviceType}`;
     if (record.chargeType === 'foreign' && record.usdAmount) {
       desc += `  (USD ${record.usdAmount})`;
@@ -131,41 +139,32 @@ async function generateDocumentPage(
     doc.font(regularFont).fontSize(liConfig.fontSize).fillColor('black')
       .text(desc, liConfig.descriptionX, y, { lineBreak: false });
 
-    // Formula line (below description)
-    let formula = '';
-    if (record.chargeType === 'foreign' && record.usdAmount && record.exchangeRate) {
-      const gross = record.thbAmount;
-      formula = `(${record.exchangeRate}*${record.usdAmount}*${taxRate}/95)=${wht.toFixed(2)}`;
-    } else {
-      formula = `(${record.thbAmount.toFixed(2)}*${taxRate}/${100 - taxRate})=${wht.toFixed(2)}`;
-    }
+    // Formula: (thbAmount * taxRate / (100-taxRate)) = wht
+    const formula = `(${record.thbAmount.toFixed(2)}*${taxRate}/${100 - taxRate})=${wht.toFixed(2)}`;
     doc.font(regularFont).fontSize(liConfig.formulaFontSize).fillColor('black')
       .text(formula, liConfig.descriptionX, y + liConfig.formulaOffsetY, { lineBreak: false });
 
-    // Credit amount (net THB)
-    const { baht, satang } = splitBahtSatang(record.thbAmount);
+    // Credit amount = WHT (not gross THB)
+    const { baht, satang } = splitBahtSatang(wht);
     const creditBahtW = doc.font(regularFont).fontSize(liConfig.fontSize).widthOfString(baht.toString());
     doc.text(baht.toString(), liConfig.creditBahtX - creditBahtW, y, { lineBreak: false });
-    const satangStr = pad2(satang);
-    doc.text(satangStr, liConfig.creditSatangX, y, { lineBreak: false });
+    doc.text(pad2(satang), liConfig.creditSatangX, y, { lineBreak: false });
   });
 
-  // WHT debit total (sum of WHT = debit side)
+  // DEBIT row = total WHT
   const { baht: whtBaht, satang: whtSatang } = splitBahtSatang(totalWht);
   drawTextField(doc, whtBaht.toString(), fields.wht_debit_baht, regularFont, boldFont);
   drawTextField(doc, pad2(whtSatang), fields.wht_debit_satang, regularFont, boldFont);
 
-  // TOTAL row
-  const { baht: totalCreditBaht, satang: totalCreditSatang } = splitBahtSatang(totalCredit);
-  const { baht: totalDebitBaht, satang: totalDebitSatang } = splitBahtSatang(totalWht);
+  // TOTAL row — both debit and credit equal totalWht
+  const { baht: totalBaht, satang: totalSatang } = splitBahtSatang(totalWht);
+  drawTextField(doc, totalBaht.toString(), fields.total_debit_baht, regularFont, boldFont);
+  drawTextField(doc, pad2(totalSatang), fields.total_debit_satang, regularFont, boldFont);
+  drawTextField(doc, totalBaht.toString(), fields.total_credit_baht, regularFont, boldFont);
+  drawTextField(doc, pad2(totalSatang), fields.total_credit_satang, regularFont, boldFont);
 
-  drawTextField(doc, totalDebitBaht.toString(), fields.total_debit_baht, regularFont, boldFont);
-  drawTextField(doc, pad2(totalDebitSatang), fields.total_debit_satang, regularFont, boldFont);
-  drawTextField(doc, totalCreditBaht.toString(), fields.total_credit_baht, regularFont, boldFont);
-  drawTextField(doc, pad2(totalCreditSatang), fields.total_credit_satang, regularFont, boldFont);
-
-  // Amount in Thai words (credit total)
-  drawTextField(doc, toThaiText(totalCredit), fields.amount_words, regularFont, boldFont);
+  // Amount in Thai words = WHT total
+  drawTextField(doc, toThaiText(totalWht), fields.amount_words, regularFont, boldFont);
 
   // Department
   if (fields.department) {
