@@ -11,6 +11,7 @@
     "domestic": {
       "label": "Thai Service (THB/บริการในประเทศ)",
       "documents": [
+        "credit_card",
         "ppnd36"
       ]
     }

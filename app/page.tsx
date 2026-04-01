@@ -20,7 +20,7 @@ const DOC_LABELS: Record<string, string> = {
 
 const CHARGE_DOCS: Record<string, string[]> = {
   foreign: ['credit_card', 'pnd54', 'ppnd36'],
-  domestic: ['ppnd36'],
+  domestic: ['credit_card', 'ppnd36'],
 };
 
 const WHT_RATE = 5;
@@ -29,12 +29,13 @@ const VAT_RATE = 7;
 function calcWht(thbAmount: number): number {
   return Math.round((thbAmount * WHT_RATE) / (100 - WHT_RATE) * 100) / 100;
 }
-function calcVat(thbAmount: number): number {
-  const wht = calcWht(thbAmount);
+function calcVat(thbAmount: number, chargeType: 'foreign' | 'domestic' = 'foreign'): number {
+  const wht = chargeType === 'domestic' ? 0 : calcWht(thbAmount);
   return Math.round((thbAmount + wht) * VAT_RATE / 100 * 100) / 100;
 }
-function calcTotalPaid(thbAmount: number): number {
-  return Math.round((thbAmount + calcWht(thbAmount)) * 100) / 100;
+function calcTotalPaid(thbAmount: number, chargeType: 'foreign' | 'domestic' = 'foreign'): number {
+  const wht = chargeType === 'domestic' ? 0 : calcWht(thbAmount);
+  return Math.round((thbAmount + wht) * 100) / 100;
 }
 
 function newRecord(id?: string): ChargeRecord {
@@ -99,9 +100,9 @@ export default function Home() {
     }
   };
 
-  const totalPaidSum = records.reduce((s, r) => s + calcTotalPaid(r.thbAmount), 0);
+  const totalPaidSum = records.reduce((s, r) => s + calcTotalPaid(r.thbAmount, r.chargeType), 0);
   const totalWhtSum = records.filter(r => r.chargeType === 'foreign').reduce((s, r) => s + calcWht(r.thbAmount), 0);
-  const totalVatSum = records.reduce((s, r) => s + calcVat(r.thbAmount), 0);
+  const totalVatSum = records.reduce((s, r) => s + calcVat(r.thbAmount, r.chargeType), 0);
   const subtotalSum = records.reduce((s, r) => s + r.thbAmount, 0);
 
   return (

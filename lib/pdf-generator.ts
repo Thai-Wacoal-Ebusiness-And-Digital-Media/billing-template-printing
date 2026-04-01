@@ -101,7 +101,7 @@ function pad2(n: number): string {
 
 function computeAmounts(r: ChargeRecord, whtRate: number, vatRate: number): RecordAmounts {
   const thbNet = r.thbAmount;
-  const wht = round2((thbNet * whtRate) / (100 - whtRate));
+  const wht = r.chargeType === 'domestic' ? 0 : round2((thbNet * whtRate) / (100 - whtRate));
   const totalPaid = round2(thbNet + wht);
   const vat = round2(totalPaid * vatRate / 100);
   return { record: r, thbNet, wht, totalPaid, vat };
@@ -204,7 +204,9 @@ function renderPage(
       doc.font(regularFont).fontSize(li.formulaFontSize).fillColor('black')
         .text(formula, li.descriptionX, y + li.formulaOffsetY, { lineBreak: false });
     } else if (docDef.formulaType === 'vat') {
-      const formula = `(${a.thbNet.toFixed(2)}+${a.wht.toFixed(2)})*${vatRate}/100=${a.vat.toFixed(2)}`;
+      const formula = a.wht > 0
+        ? `(${a.thbNet.toFixed(2)}+${a.wht.toFixed(2)})*${vatRate}/100=${a.vat.toFixed(2)}`
+        : `${a.thbNet.toFixed(2)}*${vatRate}/100=${a.vat.toFixed(2)}`;
       doc.font(regularFont).fontSize(li.formulaFontSize).fillColor('black')
         .text(formula, li.descriptionX, y + li.formulaOffsetY, { lineBreak: false });
     }
@@ -219,8 +221,8 @@ function renderPage(
     lineIdx++;
   });
 
-  // Extra credit line (ชุดที่ 1 only — Acc.Withholding WHT line)
-  if (docDef.extraCreditLine && docDef.extraCreditCalc) {
+  // Extra credit line (ชุดที่ 1 only — Acc.Withholding WHT line, only when WHT applies)
+  if (docDef.extraCreditLine && docDef.extraCreditCalc && totalWHT > 0) {
     const y = li.startY + lineIdx * li.lineHeight;
     doc.font(regularFont).fontSize(li.fontSize).fillColor('black')
       .text(docDef.extraCreditLine, li.descriptionX, y, { lineBreak: false });
