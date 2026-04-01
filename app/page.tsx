@@ -311,6 +311,7 @@ export default function Home() {
                 <p className="font-sans text-[10px] uppercase tracking-widest text-secondary text-center">
                   Payment Voucher Generator — Built for Thai Wacoal PLC E-Business & Digital Media
                 </p>
+                <p className="font-sans text-[10px] text-outline text-center mt-1">v{process.env.NEXT_PUBLIC_APP_VERSION}</p>
               </footer>
 
             </div>
