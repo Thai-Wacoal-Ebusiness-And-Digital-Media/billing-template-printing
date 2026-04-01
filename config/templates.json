@@ -13,6 +13,8 @@
     "referenceImage": "public/templates/credit_card.png",
     "pageWidth": 1275,
     "pageHeight": 915,
+    "paperWidthMm": 210,
+    "paperHeightMm": 153,
     "font": "public/fonts/THSarabunNew.ttf",
     "boldFont": "public/fonts/THSarabunNew Bold.ttf",
     "positions": {

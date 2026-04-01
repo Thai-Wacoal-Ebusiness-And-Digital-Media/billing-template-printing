@@ -55,8 +55,10 @@ interface LineItemConfig {
 
 interface FormTemplate {
   referenceImage: string;
-  pageWidth: number;
-  pageHeight: number;
+  pageWidth: number;   // reference PNG width in px (coordinate space)
+  pageHeight: number;  // reference PNG height in px (coordinate space)
+  paperWidthMm?: number;   // actual print paper width in mm
+  paperHeightMm?: number;  // actual print paper height in mm
   font: string;
   boldFont: string;
   positions: Positions;
@@ -142,7 +144,7 @@ function renderPage(
   form: FormTemplate,
   docDef: DocumentDef,
   amounts: RecordAmounts[],
-  isFirst: boolean
+  _isFirst: boolean   // page management handled by caller
 ): void {
   const cwd = process.cwd();
   const regularFont = path.resolve(cwd, form.font);
@@ -152,27 +154,23 @@ function renderPage(
   const whtRate = docDef.whtRate;
   const vatRate = docDef.vatRate ?? 7;
 
-  if (!isFirst) {
-    doc.addPage({ size: [form.pageWidth, form.pageHeight], margin: 0 });
-  }
-
-  // White page
+  // White background (drawn in the reference PNG coordinate space — transform handles scaling)
   doc.rect(0, 0, form.pageWidth, form.pageHeight).fill('white');
 
   // ── Document title (for on-screen ID) ──────────────────────────────────
-  doc.font(boldFont).fontSize(16).fillColor('#333333')
-    .text(docDef.name, 40, 40, { lineBreak: false });
+  // doc.font(boldFont).fontSize(16).fillColor('#333333')
+  //   .text(docDef.name, 40, 40, { lineBreak: false });
 
   // ── Compute totals ──────────────────────────────────────────────────────
-  const totalWHT   = round2(amounts.reduce((s, a) => s + a.wht, 0));
-  const totalPaid  = round2(amounts.reduce((s, a) => s + a.totalPaid, 0));
-  const totalVAT   = round2(amounts.reduce((s, a) => s + a.vat, 0));
+  const totalWHT = round2(amounts.reduce((s, a) => s + a.wht, 0));
+  const totalPaid = round2(amounts.reduce((s, a) => s + a.totalPaid, 0));
+  const totalVAT = round2(amounts.reduce((s, a) => s + a.vat, 0));
   const totalService = round2(amounts.reduce((s, a) => s + a.thbNet, 0));
 
   const debitTotal =
     docDef.debitCalc === 'totalPaid' ? totalPaid :
-    docDef.debitCalc === 'totalWHT'  ? totalWHT  :
-    totalVAT;
+      docDef.debitCalc === 'totalWHT' ? totalWHT :
+        totalVAT;
 
   // ── Debit description + amount ──────────────────────────────────────────
   drawAt(doc, docDef.debitLabel, pos.debit_desc, regularFont, boldFont);
@@ -209,8 +207,8 @@ function renderPage(
     // Credit amount
     const creditAmt =
       docDef.creditCalc === 'service' ? a.thbNet :
-      docDef.creditCalc === 'wht'     ? a.wht    :
-      a.vat;
+        docDef.creditCalc === 'wht' ? a.wht :
+          a.vat;
 
     drawCredit(doc, creditAmt, y, li, regularFont);
     lineIdx++;
@@ -231,10 +229,10 @@ function renderPage(
 
   // ── Total row ───────────────────────────────────────────────────────────
   const { baht: tBaht, satang: tSatang } = splitBahtSatang(debitTotal);
-  drawAt(doc, tBaht.toString(), pos.total_debit_baht,   regularFont, boldFont);
-  drawAt(doc, pad2(tSatang),   pos.total_debit_satang,  regularFont, boldFont);
-  drawAt(doc, tBaht.toString(), pos.total_credit_baht,  regularFont, boldFont);
-  drawAt(doc, pad2(tSatang),   pos.total_credit_satang, regularFont, boldFont);
+  drawAt(doc, tBaht.toString(), pos.total_debit_baht, regularFont, boldFont);
+  drawAt(doc, pad2(tSatang), pos.total_debit_satang, regularFont, boldFont);
+  drawAt(doc, tBaht.toString(), pos.total_credit_baht, regularFont, boldFont);
+  drawAt(doc, pad2(tSatang), pos.total_credit_satang, regularFont, boldFont);
 
   // ── Thai words ──────────────────────────────────────────────────────────
   drawAt(doc, toThaiText(debitTotal), pos.amount_words, regularFont, boldFont);
@@ -242,11 +240,21 @@ function renderPage(
 
 // ─── public entry point ─────────────────────────────────────────────────────
 
+const MM_TO_PT = 72 / 25.4; // 1 mm = 72/25.4 PDF points
+
 export async function generateCombinedPdf(records: ChargeRecord[]): Promise<Buffer> {
   const configPath = path.resolve(process.cwd(), 'config/templates.json');
   const config: TemplateConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
   const form = config.formTemplate;
+
+  // Compute actual PDF page size in points from mm (fallback to px dimensions)
+  const pdfW = form.paperWidthMm  ? form.paperWidthMm  * MM_TO_PT : form.pageWidth;
+  const pdfH = form.paperHeightMm ? form.paperHeightMm * MM_TO_PT : form.pageHeight;
+
+  // Scale factors: map reference PNG coordinate space → PDF point space
+  const scaleX = pdfW / form.pageWidth;
+  const scaleY = pdfH / form.pageHeight;
 
   // Which documents are needed across all records
   const neededDocs = new Set<string>();
@@ -256,7 +264,7 @@ export async function generateCombinedPdf(records: ChargeRecord[]): Promise<Buff
   const docOrder = ['credit_card', 'pnd54', 'ppnd36'].filter(d => neededDocs.has(d));
 
   const pdfDoc = new PDFDocument({
-    size: [form.pageWidth, form.pageHeight],
+    size: [pdfW, pdfH],
     margin: 0,
     autoFirstPage: true,
   });
@@ -268,18 +276,23 @@ export async function generateCombinedPdf(records: ChargeRecord[]): Promise<Buff
     const docKey = docOrder[i];
     const docDef = config.documents[docKey];
 
-    // Records that need this document
     const relevant = records.filter(r =>
       config.chargeTypes[r.chargeType].documents.includes(docKey)
     );
     if (relevant.length === 0) continue;
 
-    // Compute amounts for each record using this doc's rates
     const whtRate = docDef.whtRate ?? 5;
     const vatRate = docDef.vatRate ?? 7;
     const amounts = relevant.map(r => computeAmounts(r, whtRate, vatRate));
 
-    renderPage(pdfDoc, form, docDef, amounts, i === 0);
+    // Apply scale transform so all existing pixel coordinates map correctly
+    if (i > 0) {
+      pdfDoc.addPage({ size: [pdfW, pdfH], margin: 0 });
+    }
+    pdfDoc.save();
+    pdfDoc.transform(scaleX, 0, 0, scaleY, 0, 0);
+    renderPage(pdfDoc, form, docDef, amounts, true /* page already added */);
+    pdfDoc.restore();
   }
 
   pdfDoc.end();
