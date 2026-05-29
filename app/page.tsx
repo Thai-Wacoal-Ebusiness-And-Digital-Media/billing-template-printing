@@ -302,6 +302,15 @@ export default function Home() {
                         <span className="material-symbols-outlined">picture_as_pdf</span>
                         {loading ? 'Generating PDF...' : 'Generate PDF Voucher'}
                       </button>
+                      <a
+                        href="/api/calibrate-pdf"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 text-sm text-secondary border border-outline-variant/40 hover:bg-surface-container-low transition-all"
+                      >
+                        <span className="material-symbols-outlined text-sm">grid_on</span>
+                        Print Calibration Grid
+                      </a>
                     </div>
                   </div>
                 </div>

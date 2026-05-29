@@ -28,65 +28,62 @@
       "debit_desc": {
         "x": 530,
         "y": 305,
-        "fontSize": 24
+        "fontSize": 22
       },
       "wht_debit_baht": {
-        "x": 990,
-        "y": 320,
-        "fontSize": 24,
+        "x": 1030,
+        "y": 305,
+        "fontSize": 22,
         "align": "right"
       },
       "wht_debit_satang": {
         "x": 1045,
-        "y": 320,
-        "fontSize": 24,
-        "align": "right"
+        "y": 305,
+        "fontSize": 22
       },
       "amount_words": {
         "x": 185,
-        "y": 700,
-        "fontSize": 24,
+        "y": 685,
+        "fontSize": 22,
         "bold": true
       },
       "total_debit_baht": {
-        "x": 990,
-        "y": 700,
-        "fontSize": 24,
+        "x": 1030,
+        "y": 685,
+        "fontSize": 22,
         "align": "right"
       },
       "total_debit_satang": {
         "x": 1045,
-        "y": 700,
-        "fontSize": 24,
-        "align": "right"
+        "y": 685,
+        "fontSize": 22
       },
       "total_credit_baht": {
-        "x": 1160,
-        "y": 700,
-        "fontSize": 24,
+        "x": 1195,
+        "y": 685,
+        "fontSize": 22,
         "align": "right"
       },
       "total_credit_satang": {
-        "x": 1215,
-        "y": 700,
-        "fontSize": 24,
-        "align": "right"
+        "x": 1210,
+        "y": 685,
+        "fontSize": 22
       },
       "department": {
         "x": 645,
-        "y": 610,
-        "fontSize": 24
+        "y": 585,
+        "fontSize": 22
       }
     },
     "lineItems": {
-      "startY": 418,
-      "lineHeight": 50,
+      "startY": 400,
+      "lineHeight": 51,
       "descriptionX": 530,
-      "formulaOffsetY": 25,
-      "creditBahtX": 1160,
-      "creditSatangX": 1215,
-      "fontSize": 24,
-      "formulaFontSize": 22
+      "formulaOffsetY": 24,
+      "creditBahtX": 1195,
+      "creditSatangX": 1210,
+      "fontSize": 22,
+      "formulaFontSize": 20
     }
   },
   "documents": {
